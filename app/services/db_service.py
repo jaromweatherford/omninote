@@ -93,14 +93,16 @@ async def get_note(db: AsyncSession, team_id: UUID, note_id: UUID) -> Note | Non
 
 
 async def list_notes(db: AsyncSession, team_id: UUID, cursor: str | None, limit: int = 20) -> tuple[list[Note], str | None]:
+    from datetime import datetime
     query = select(Note).where(Note.team_id == team_id).order_by(Note.updated_at.desc(), Note.id.desc()).limit(limit + 1)
     
     if cursor:
         try:
             cursor_updated_at, cursor_id = cursor.split("|")
+            cursor_dt = datetime.fromisoformat(cursor_updated_at)
             query = query.where(
-                (Note.updated_at < cursor_updated_at) |
-                ((Note.updated_at == cursor_updated_at) & (Note.id < UUID(cursor_id)))
+                (Note.updated_at < cursor_dt) |
+                ((Note.updated_at == cursor_dt) & (Note.id < UUID(cursor_id)))
             )
         except ValueError:
             pass

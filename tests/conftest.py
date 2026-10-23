@@ -1,8 +1,11 @@
+import os
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text, delete
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.main import app
 from app.db.session import Base, get_db
@@ -12,8 +15,12 @@ from app.services.auth import get_password_hash, create_access_token
 import uuid
 
 
-TEST_DATABASE_URL = "postgresql+asyncpg://omninote:omninote@localhost:5432/omninote_test"
+# Use Docker service name when running in Docker, localhost otherwise
+IN_DOCKER = os.environ.get("IN_DOCKER", "false").lower() == "true"
+DB_HOST = "db" if IN_DOCKER else "localhost"
+TEST_DATABASE_URL = f"postgresql+asyncpg://omninote:omninote@{DB_HOST}:5432/omninote_test"
 
+# Create engine for test database
 test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 test_async_session_maker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -23,8 +30,22 @@ async def override_get_db():
         yield session
 
 
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def create_test_database():
+    """Create test database if it doesn't exist"""
+    admin_url = f"postgresql+asyncpg://omninote:omninote@{DB_HOST}:5432/postgres"
+    admin_engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT", poolclass=NullPool)
+    async with admin_engine.connect() as conn:
+        result = await conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = 'omninote_test'")
+        )
+        if not result.scalar():
+            await conn.execute(text("CREATE DATABASE omninote_test"))
+    await admin_engine.dispose()
+
+
 @pytest_asyncio.fixture(scope="session")
-async def db_engine():
+async def db_engine(create_test_database):
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield test_engine
@@ -34,9 +55,25 @@ async def db_engine():
 
 @pytest_asyncio.fixture
 async def db_session(db_engine):
+    """Create a new database session for each test with proper cleanup."""
     async with test_async_session_maker() as session:
         yield session
-        await session.rollback()
+        # Clean up after test - rollback any pending transaction first
+        try:
+            await session.rollback()
+        except Exception:
+            pass
+        # Truncate all tables in reverse order of dependencies
+        try:
+            await session.execute(delete(Note))
+            await session.execute(delete(Membership))
+            await session.execute(delete(Team))
+            await session.execute(delete(User))
+            await session.commit()
+        except Exception:
+            await session.rollback()
+        finally:
+            await session.close()
 
 
 @pytest_asyncio.fixture
@@ -52,7 +89,7 @@ async def client(db_session):
 async def user1(db_session):
     user = User(email="user1@test.com", password_hash=get_password_hash("password123"))
     db_session.add(user)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(user)
     return user
 
@@ -61,7 +98,7 @@ async def user1(db_session):
 async def user2(db_session):
     user = User(email="user2@test.com", password_hash=get_password_hash("password123"))
     db_session.add(user)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(user)
     return user
 
@@ -70,7 +107,7 @@ async def user2(db_session):
 async def user3(db_session):
     user = User(email="user3@test.com", password_hash=get_password_hash("password123"))
     db_session.add(user)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(user)
     return user
 
@@ -82,7 +119,7 @@ async def team1(db_session, user1):
     await db_session.flush()
     membership = Membership(team_id=team.id, user_id=user1.id, role="admin")
     db_session.add(membership)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(team)
     return team
 
@@ -94,7 +131,7 @@ async def team2(db_session, user2):
     await db_session.flush()
     membership = Membership(team_id=team.id, user_id=user2.id, role="admin")
     db_session.add(membership)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(team)
     return team
 

@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,18 +48,33 @@ def get_policy(db: AsyncSession = Depends(get_db)) -> Policy:
     return MembershipPolicy(db)
 
 
-async def authorize(
-    action: Action,
-    resource_type: ResourceType,
-    resource_id: UUID,
-    team_id: UUID | None = None,
-    user_id: UUID = Depends(get_current_user_id),
-    policy: Policy = Depends(get_policy)
-) -> None:
-    resource = Resource(resource_type=resource_type, resource_id=resource_id, team_id=team_id)
-    result = await policy.authorize(user_id, action, resource)
-    if result == AuthorizationResult.DENY:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
+def authorize(action: Action, resource_type: ResourceType, team_id_param: str | None = None):
+    async def _authorize(
+        request: Request,
+        user_id: UUID = Depends(get_current_user_id),
+        policy: Policy = Depends(get_policy)
+    ) -> None:
+        resource_id = request.path_params.get("team_id") or request.path_params.get("note_id")
+        if resource_id is None:
+            raise HTTPException(status_code=400, detail="Missing resource ID in path")
+        
+        resource_id_uuid = UUID(resource_id)
+        
+        team_id = None
+        if team_id_param:
+            team_id = request.path_params.get(team_id_param)
+            if team_id:
+                team_id = UUID(team_id)
+        elif resource_type == ResourceType.NOTE:
+            team_id = request.path_params.get("team_id")
+            if team_id:
+                team_id = UUID(team_id)
+        
+        resource = Resource(resource_type=resource_type, resource_id=resource_id_uuid, team_id=team_id)
+        result = await policy.authorize(user_id, action, resource)
+        if result == AuthorizationResult.DENY:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+    return _authorize

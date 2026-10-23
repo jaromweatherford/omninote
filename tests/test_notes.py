@@ -43,27 +43,27 @@ class TestNotes:
         )
         assert response.status_code == 422
 
-    async def test_list_notes(self, client: AsyncClient, auth_headers1, team1, db_session):
+    async def test_list_notes(self, client: AsyncClient, auth_headers1, team1, user1, db_session):
         from app.models import Note
-        note1 = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Note 1", body="Body 1", version="1")
-        note2 = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Note 2", body="Body 2", version="1")
+        note1 = Note(team_id=team1.id, author_id=user1.id, title="Note 1", body="Body 1", version="1")
+        note2 = Note(team_id=team1.id, author_id=user1.id, title="Note 2", body="Body 2", version="1")
         db_session.add_all([note1, note2])
         await db_session.commit()
 
-        response = await client.get(f"/v1/teams/{team1.id}/notes", headers=auth_headers1)
+        response = await client.get(f"/v1/teams/{team1.id}/notes?limit=1", headers=auth_headers1)
         assert response.status_code == 200
         data = response.json()
-        assert len(data["notes"]) == 2
+        assert len(data["notes"]) == 1
         assert data["next_cursor"] is not None
 
-    async def test_list_notes_pagination(self, client: AsyncClient, auth_headers1, team1, db_session):
+    async def test_list_notes_pagination(self, client: AsyncClient, auth_headers1, team1, user1, db_session):
         from app.models import Note
         from datetime import datetime, timedelta
         base_time = datetime.utcnow()
         for i in range(5):
             note = Note(
                 team_id=team1.id,
-                author_id=team1.memberships[0].user_id,
+                author_id=user1.id,
                 title=f"Note {i}",
                 body=f"Body {i}",
                 version="1",
@@ -88,9 +88,9 @@ class TestNotes:
         response = await client.get(f"/v1/teams/{team1.id}/notes", headers=auth_headers2)
         assert response.status_code == 403
 
-    async def test_get_note(self, client: AsyncClient, auth_headers1, team1, db_session):
+    async def test_get_note(self, client: AsyncClient, auth_headers1, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Test Note", body="Test body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="Test Note", body="Test body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -107,9 +107,9 @@ class TestNotes:
         response = await client.get(f"/v1/teams/{team1.id}/notes/{fake_id}", headers=auth_headers1)
         assert response.status_code == 404
 
-    async def test_get_note_not_member(self, client: AsyncClient, auth_headers2, team1, db_session):
+    async def test_get_note_not_member(self, client: AsyncClient, auth_headers2, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Test Note", body="Test body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="Test Note", body="Test body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -117,9 +117,9 @@ class TestNotes:
         response = await client.get(f"/v1/teams/{team1.id}/notes/{note.id}", headers=auth_headers2)
         assert response.status_code == 403
 
-    async def test_update_note(self, client: AsyncClient, auth_headers1, team1, db_session):
+    async def test_update_note(self, client: AsyncClient, auth_headers1, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Original", body="Original body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="Original", body="Original body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -135,9 +135,9 @@ class TestNotes:
         assert data["body"] == "Updated body"
         assert data["version"] == "2"
 
-    async def test_update_note_version_conflict(self, client: AsyncClient, auth_headers1, team1, db_session):
+    async def test_update_note_version_conflict(self, client: AsyncClient, auth_headers1, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Original", body="Original body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="Original", body="Original body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -150,9 +150,9 @@ class TestNotes:
         assert response.status_code == 409
         assert response.json()["detail"] == "Version conflict: note has been modified"
 
-    async def test_update_note_not_member(self, client: AsyncClient, auth_headers2, team1, db_session):
+    async def test_update_note_not_member(self, client: AsyncClient, auth_headers2, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Original", body="Original body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="Original", body="Original body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -164,9 +164,9 @@ class TestNotes:
         )
         assert response.status_code == 403
 
-    async def test_delete_note(self, client: AsyncClient, auth_headers1, team1, db_session):
+    async def test_delete_note(self, client: AsyncClient, auth_headers1, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="To Delete", body="Body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="To Delete", body="Body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -177,9 +177,9 @@ class TestNotes:
         response = await client.get(f"/v1/teams/{team1.id}/notes/{note.id}", headers=auth_headers1)
         assert response.status_code == 404
 
-    async def test_delete_note_not_member(self, client: AsyncClient, auth_headers2, team1, db_session):
+    async def test_delete_note_not_member(self, client: AsyncClient, auth_headers2, team1, user1, db_session):
         from app.models import Note
-        note = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="To Delete", body="Body", version="1")
+        note = Note(team_id=team1.id, author_id=user1.id, title="To Delete", body="Body", version="1")
         db_session.add(note)
         await db_session.commit()
         await db_session.refresh(note)
@@ -187,10 +187,10 @@ class TestNotes:
         response = await client.delete(f"/v1/teams/{team1.id}/notes/{note.id}", headers=auth_headers2)
         assert response.status_code == 403
 
-    async def test_tenant_isolation(self, client: AsyncClient, auth_headers1, auth_headers2, team1, team2, db_session):
+    async def test_tenant_isolation(self, client: AsyncClient, auth_headers1, auth_headers2, team1, team2, user1, user2, db_session):
         from app.models import Note
-        note1 = Note(team_id=team1.id, author_id=team1.memberships[0].user_id, title="Team 1 Note", body="Body", version="1")
-        note2 = Note(team_id=team2.id, author_id=team2.memberships[0].user_id, title="Team 2 Note", body="Body", version="1")
+        note1 = Note(team_id=team1.id, author_id=user1.id, title="Team 1 Note", body="Body", version="1")
+        note2 = Note(team_id=team2.id, author_id=user2.id, title="Team 2 Note", body="Body", version="1")
         db_session.add_all([note1, note2])
         await db_session.commit()
 

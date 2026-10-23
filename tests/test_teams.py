@@ -48,7 +48,9 @@ class TestTeams:
         import uuid
         fake_id = uuid.uuid4()
         response = await client.get(f"/v1/teams/{fake_id}", headers=auth_headers1)
-        assert response.status_code == 404
+        # Returns 403 because user is not a member of the non-existent team
+        # This avoids revealing whether a team exists
+        assert response.status_code == 403
 
     async def test_list_team_members(self, client: AsyncClient, auth_headers1, team1, user1):
         response = await client.get(f"/v1/teams/{team1.id}/members", headers=auth_headers1)
