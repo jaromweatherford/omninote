@@ -199,21 +199,21 @@ app/
 
 **Decision:** Implemented full authentication (JWT with bcrypt password hashing), team-based authorization with role-based access control (admin/member), and centralized policy enforcement. Even though this is a test project, the nature of a multi-team notes service inherently requires user isolation and access control — without it, the core functionality (teams sharing notes) cannot be demonstrated securely.
 
-**Why:** The project specification called for "access checks prevent users from reading or changing resources they are not permitted to access." This required a real auth/authz system, not a stub.
+**Why:** The role in question is highly sensitive and requires tight security.  It seemed more important to demonstrate the ability to protect data than to implement more features.
 
 ### 2. Collaborative Editing Scope
 **Time spent:** Evaluating whether to implement real-time collaborative editing (Phase 3) in the initial delivery.
 
 **Decision:** Designed the data model and API to support future collaborative editing (version field for optimistic locking, note body as separate field), but deferred WebSocket/CRDT implementation to Phase 3 as specified in the plan.
 
-**Why:** Real-time collaborative editing with CRDTs is a substantial undertaking (library selection, conflict resolution, offline support, connection management). The phased approach in the plan explicitly separates this into Phase 3. Building it properly would require a technical spike to select a CRDT library (Yjs, Automerge, or custom) and validate it works with the chosen stack.
+**Why:** Real-time collaborative editing with CRDTs is a substantial undertaking (library selection, conflict resolution, offline support, connection management). The phased approach in the plan explicitly separates this into Phase 3. Not knowing beforehand how far I could get in 3 hours, I decided to add it to the plan and implement only if I had ample time to do so..
 
 ### 3. Permission System Granularity
 **Time spent:** Deciding between simple team membership vs. fine-grained resource-level permissions.
 
 **Decision:** Implemented team-scoped permissions (Phase 1) with a policy interface designed to support Phase 2's fine-grained grants (user/team grants on teams/notes with role inheritance). The `authorize(user, action, resource)` interface is ready for extension.
 
-**Why:** The plan calls for three phases. Phase 1 establishes the foundation. Over-engineering permissions in Phase 1 would violate the "later phases extend earlier API rather than replacing" principle.
+**Why:** Same justification as decision 2.  I had originally included this in the first phase, but a parallel AI plan proposed a simplified permissions system and I decided to include my permissions controls only as a stretch goal.
 
 ## With More Time
 
