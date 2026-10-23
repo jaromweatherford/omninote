@@ -1,11 +1,12 @@
 import asyncio
 import uuid
+from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session_maker, engine, Base
 from app.services.db_service import create_user, create_team, create_note
 from app.schemas import UserCreate, TeamCreate, NoteCreate
-from app.models import User, Team, Membership
+from app.models import User, Team, Membership, Note
 from app.services.auth import get_password_hash
 
 
@@ -16,7 +17,7 @@ async def seed_data():
         for i in range(3):
             email = f"user{i+1}@example.com"
             existing = await db.execute(
-                "SELECT * FROM users WHERE email = :email",
+                text("SELECT * FROM users WHERE email = :email"),
                 {"email": email}
             )
             if not existing.scalar_one_or_none():
@@ -27,7 +28,6 @@ async def seed_data():
                 db.add(user)
                 users.append(user)
             else:
-                from sqlalchemy import select
                 result = await db.execute(select(User).where(User.email == email))
                 users.append(result.scalar_one())
         
