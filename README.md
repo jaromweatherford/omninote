@@ -192,6 +192,39 @@ app/
 - No rich text, attachments, or search (planned for future phases)
 - WebSocket collaboration not yet implemented (Phase 3)
 
+## Design Choices & Time Investment
+
+### 1. Security Implementation
+**Time spent:** Significant deliberation on how much security to implement for a test project.
+
+**Decision:** Implemented full authentication (JWT with bcrypt password hashing), team-based authorization with role-based access control (admin/member), and centralized policy enforcement. Even though this is a test project, the nature of a multi-team notes service inherently requires user isolation and access control — without it, the core functionality (teams sharing notes) cannot be demonstrated securely.
+
+**Why:** The project specification called for "access checks prevent users from reading or changing resources they are not permitted to access." This required a real auth/authz system, not a stub.
+
+### 2. Collaborative Editing Scope
+**Time spent:** Evaluating whether to implement real-time collaborative editing (Phase 3) in the initial delivery.
+
+**Decision:** Designed the data model and API to support future collaborative editing (version field for optimistic locking, note body as separate field), but deferred WebSocket/CRDT implementation to Phase 3 as specified in the plan.
+
+**Why:** Real-time collaborative editing with CRDTs is a substantial undertaking (library selection, conflict resolution, offline support, connection management). The phased approach in the plan explicitly separates this into Phase 3. Building it properly would require a technical spike to select a CRDT library (Yjs, Automerge, or custom) and validate it works with the chosen stack.
+
+### 3. Permission System Granularity
+**Time spent:** Deciding between simple team membership vs. fine-grained resource-level permissions.
+
+**Decision:** Implemented team-scoped permissions (Phase 1) with a policy interface designed to support Phase 2's fine-grained grants (user/team grants on teams/notes with role inheritance). The `authorize(user, action, resource)` interface is ready for extension.
+
+**Why:** The plan calls for three phases. Phase 1 establishes the foundation. Over-engineering permissions in Phase 1 would violate the "later phases extend earlier API rather than replacing" principle.
+
+## With More Time
+
+If I had more time, I would implement the remaining phases from the plan:
+
+1. **Phase 2 — Fine-grained permissions:** Resource-level grants for users and teams on teams and notes, with explicit role inheritance (Reader/Writer/Admin), grant management endpoints, and privilege escalation prevention.
+
+2. **Phase 3 — Real-time collaborative editing:** WebSocket endpoint for live editing (`/v1/teams/{team_id}/notes/{note_id}/collaboration`), CRDT-based document synchronization (likely using Yjs or Automerge), document snapshot and update log persistence with idempotent updates, snapshot compaction, and reconnection recovery.
+
+3. **Additional features:** Email verification, password reset, invitation workflows, rich text support, search, and revision history.
+
 ## License
 
 MIT
